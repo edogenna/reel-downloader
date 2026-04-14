@@ -25,15 +25,14 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 
-REEL_SHORTCODE_RE = re.compile(r"/reel/([A-Za-z0-9_-]+)/?")
 DEFAULT_DOWNLOAD_DIR = Path("downloads")
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Download the MP4 video from an Instagram Reel URL."
+        description="Download the MP4 video from an Instagram post or Reel URL."
     )
-    parser.add_argument("url", help="Instagram Reel URL")
+    parser.add_argument("url", help="Instagram post or Reel URL")
     parser.add_argument(
         "--username",
         default=os.getenv("IG_USERNAME"),
@@ -53,24 +52,23 @@ def parse_args() -> argparse.Namespace:
 
 
 def extract_shortcode(reel_url: str) -> str:
-    match = REEL_SHORTCODE_RE.search(reel_url)
+    match = re.search(r"/(?:reel|p)/([A-Za-z0-9_-]+)/?", reel_url)
     if match:
         return match.group(1)
 
     parsed = urlparse(reel_url)
     parts = [part for part in parsed.path.split("/") if part]
-    if len(parts) >= 2 and parts[0] == "reel":
+    if len(parts) >= 2 and parts[0] in {"reel", "p"}:
         return parts[1]
 
-    raise ValueError("Invalid Instagram Reel URL: unable to extract shortcode.")
+    raise ValueError("Invalid Instagram URL: unable to extract shortcode.")
 
 
 def load_instaloader_module():
     try:
         return importlib.import_module("instaloader")
-    except ModuleNotFoundError as exc:
-        print("Missing dependency: install it with 'pip install instaloader'.")
-        raise SystemExit(1) from exc
+    except ModuleNotFoundError:
+        return None
 
 
 def build_loader(instaloader_module, username: str | None, password: str | None):
@@ -113,9 +111,14 @@ def main() -> int:
     args = parse_args()
     output_dir = Path(args.output_dir)
 
+    instaloader_module = load_instaloader_module()
+    if instaloader_module is None:
+        print("Missing dependency: install it with 'pip install instaloader'.")
+        return 1
+
+    insta_exceptions = instaloader_module.exceptions
+
     try:
-        instaloader_module = load_instaloader_module()
-        insta_exceptions = instaloader_module.exceptions
         shortcode = extract_shortcode(args.url)
         loader = build_loader(instaloader_module, args.username, args.password)
         post = instaloader_module.Post.from_shortcode(loader.context, shortcode)
