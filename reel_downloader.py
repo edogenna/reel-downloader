@@ -107,6 +107,11 @@ def save_caption(caption: str | None, output_path: Path) -> None:
     output_path.write_text(caption.strip() + "\n", encoding="utf-8")
 
 
+def build_base_filename(owner_username: str, shortcode: str) -> str:
+    safe_owner = re.sub(r"[^A-Za-z0-9._-]", "_", owner_username)
+    return f"{safe_owner}_{shortcode}"
+
+
 def main() -> int:
     args = parse_args()
     output_dir = Path(args.output_dir)
@@ -128,9 +133,10 @@ def main() -> int:
             return 1
 
         output_dir.mkdir(parents=True, exist_ok=True)
-        output_path = output_dir / f"{shortcode}.mp4"
+        base_filename = build_base_filename(post.owner_username, shortcode)
+        output_path = output_dir / f"{base_filename}.mp4"
         download_video(loader, post.video_url, output_path)
-        save_caption(post.caption, output_dir / f"{shortcode}.txt")
+        save_caption(post.caption, output_dir / f"{base_filename}.txt")
 
         print(f"Downloaded video to {output_path}")
         return 0
